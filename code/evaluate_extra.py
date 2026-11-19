@@ -1,7 +1,8 @@
-"""آزمایش‌های تکمیلی روی ارزیابی اصلی (بخش‌های ۵.۱۰، ۵.۱۱ و ۵.۱۲ گزارش).
-اجرا:  python evaluate_extra.py form_responses_23.csv
-خروجی: چهار حالت (پایه، پیش‌نیاز روی درس هدف، بدون علاقه‌مندی‌ها، آموزش بدون پاسخ‌دهنده‌های «همه‌ی ۲۸ درس») با خط پایه‌ی
-Count (تعداد گذرانندگان درس در دانشجوهای آموزش) و p جایگشتی جفت‌شده‌ی اکتشافی (بدون تصحیح)."""
+"""Supplementary experiments on the main evaluation.
+Run:  python evaluate_extra.py form_responses_23.csv
+Output: four variants (base, prerequisite also applied to the target course, no declared interests, training without the
+"all 28 courses" respondents) with the Count baseline (number of training students who passed the course) and exploratory
+paired permutation p-values (uncorrected)."""
 import sys, json
 import numpy as np, pandas as pd
 import evaluate_rq1 as ev, survey_parser as sp
@@ -21,27 +22,27 @@ def _sa(t, train, it, cs):
 ev.score_all = _sa
 tests = ev.make_tests(R, interests, years, courses)
 tested = sorted({t["u"] for t in tests})
-full = [u for u in R.index if R.loc[u].notna().all()]          # پاسخ‌دهنده‌هایی که هر ۲۸ درس را امتیاز داده‌اند (بدون آزمون)
+full = [u for u in R.index if R.loc[u].notna().all()]          # respondents who rated all 28 courses (they have no tests)
 PAIRS = [("Hybrid", "Popularity"), ("Hybrid", "Count"), ("Count", "Popularity"), ("CF", "Count"), ("CB", "Count")]
 
 def run(name, tests_, it, pool_):
     per = ev.evaluate(tests_, pool_, R, it, courses)
     tab = ev.summarize(per)
-    print(f"\n== {name}: {len(tests_)} آزمون، {per.student.nunique()} دانشجو، آموزش از {len(pool_)} نفر")
+    print(f"\n== {name}: {len(tests_)} tests, {per.student.nunique()} students, training from {len(pool_)} people")
     print(tab[["R@3_mean", "NDCG@5_mean", "MRR_mean"]].round(3).to_string())
     P = {f"{a} vs {b} [{m}]": ev.paired_p(per, a, b, m) for a, b in PAIRS for m in ("R@3", "NDCG@5")}
     print({k: (None if v is None else round(v, 3)) for k, v in P.items()})
     return {"table": tab.round(4).to_dict("index"), "p": P}
 
 out = {"full28_students": [int(u) for u in full]}
-out["base"] = run("پایه", tests, interests, pool)
+out["base"] = run("base", tests, interests, pool)
 kept = []
 for t in tests:
     passed = {ev._nn(c) for c in courses if not pd.isna(t["ru"][c])}
     if ev.prereq_ok(t["held"], passed, t["term"], ev.PREREQS, ev.TERMS): kept.append(t)
-out["held_prereq"] = run("پیش‌نیاز روی درس هدف هم اعمال شد", kept, interests, pool)
+out["held_prereq"] = run("prerequisite also applied to the target course", kept, interests, pool)
 noint = pd.Series([set() for _ in R.index], index=R.index)
-out["no_interests"] = run("بدون علاقه‌مندی‌های اعلام‌شده", tests, noint, pool)
+out["no_interests"] = run("without declared interests", tests, noint, pool)
 pool2 = [u for u in pool if u not in set(full) or u in set(tested)]
-out["train_without_full"] = run(f"آموزش بدون {len(pool) - len(pool2)} پاسخ‌دهنده‌ی «همه‌ی ۲۸ درس»", tests, interests, pool2)
+out["train_without_full"] = run(f"training without {len(pool) - len(pool2)} 'all 28 courses' respondents", tests, interests, pool2)
 json.dump(out, open("extra_results.json", "w", encoding="utf8"), ensure_ascii=False, indent=2, default=float)

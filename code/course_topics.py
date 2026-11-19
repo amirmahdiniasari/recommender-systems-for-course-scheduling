@@ -2,28 +2,25 @@
 """
 course_topics.py
 -------------------
-برچسب موضوعی دستی برای درس‌ها — پایه‌ی بردار محتوای فیلترینگ مبتنی بر محتوا
-(بخش ۲.۲.۱ گزارش).
+Manual topic labels for the courses - the basis of the content vector of content-based filtering
+(section 2.2.1 of the report).
 
-نسخه‌ی قبلی این فایل از همان ۹ حوزه‌ی سؤال «علاقه‌مندی‌ها»ی فرم استفاده
-می‌کرد، ولی سه درس (فیزیک، روش تحقیق، کارگاه) در هیچ‌کدام جا نمی‌شدند. برای
-رفع این مشکل، دو حوزه تغییر/اضافه شد (به‌جای ۹ تا، ۱۰ تا):
-  - «ریاضیات محض» به «ریاضیات و علوم پایه» تغییر نام داد تا فیزیک را هم بپوشاند.
-  - «مهارت‌های پژوهشی و عملی» اضافه شد تا روش تحقیق و کارگاه را بپوشاند.
-⚠ چون این حوزه‌ها عوض شدند، سؤال «علاقه‌مندی‌ها»ی فرم (که قبلا ۹ گزینه داشت)
-هم باید با همین ۱۰ حوزه هماهنگ شود.
+The previous version of this file used the same 9 topics as the form's "interests" question, but three courses
+(physics, research methods, workshop) fitted none of them. To fix this, two topics were changed/added (10 instead of 9):
+  - "pure mathematics" was renamed "mathematics and basic sciences" so that it also covers physics.
+  - "research and practical skills" was added to cover research methods and the workshop.
+WARNING: because these topics changed, the form's "interests" question (which used to have 9 options)
+must also be aligned with these 10 topics.
 
-⚠ تغییر مهم‌تر: COURSE_TOPIC_MAP دیگر خودش «لیست سؤال‌های فرم» نیست — همه‌ی
-درس‌های چارت را پوشش می‌دهد، چه
-اجباری چه انتخابی. سؤال Grid فرم فقط از زیرمجموعه‌ی CHOICE_COURSES (پایین
-همین فایل) می‌آید: همان درس‌هایی که دانشجو واقعا در انتخابشان آزاد است
-(بر پایه‌ی تحلیل بنیادی که نشان داد رضایت از درس اجباری بیشتر کیفیت
-تدریس/سختی را نشان می‌دهد تا علاقه‌ی واقعی، نه بخش ۲.۲.۱ گزارش). این لیست با
-فیلترکردن ستون «وضعیت» چارت (هر سطری که «انتخابی» در آن باشد) به‌علاوه‌ی کل
-شیت «دروس اختیاری» ساخته شده، به‌جز دو استثنای مهم: «مبانی آنالیز ریاضی» و
-«مبانی جبر» که طبق پانویس خود چارت، با وجود عنوان «انتخابی»، گذراندن‌شان در
-عمل اجباری است (پس انتخاب واقعی نیستند و از CHOICE_COURSES کنار گذاشته
-شدند)، و سه ردیف توضیحی غیردرسی (پانویس‌های شیت) که اصلا نام درس نبودند.
+A more important change: COURSE_TOPIC_MAP is no longer itself the "list of form questions" - it covers all
+courses of the chart, mandatory or elective. The form's grid question comes only from the subset CHOICE_COURSES (further down
+in this file): the courses the student is really free to choose
+(based on the basic analysis showing that satisfaction with a mandatory course reflects teaching
+quality/difficulty more than real interest, see section 2.2.1 of the report). This list was built by
+filtering the "status" column of the chart (every row containing "elective") plus the whole
+sheet "دروس اختیاری", except two important exceptions: "Foundations of Mathematical Analysis" and
+"Foundations of Algebra", which according to the chart's own footnote are in practice mandatory despite the title "elective" (so they are not real
+choices and were left out of CHOICE_COURSES), and three explanatory non-course rows (sheet footnotes) that were not course names at all.
 """
 
 TOPICS = [
@@ -32,7 +29,7 @@ TOPICS = [
     "سخت‌افزار و سیستم", "مهارت‌های پژوهشی و عملی",
 ]
 
-# نام درس -> (دسته, [حوزه‌ها])   — به همان ترتیب ۱ تا ۳۱ فرم گوگل‌فرم
+# course name -> (category, [topics])   - in the same order 1 to 31 of the Google form
 COURSE_TOPIC_MAP = {
     "اصول سیستم‌های عامل":            ("تخصصی",  ["سخت‌افزار و سیستم"]),
     "اصول سیستم‌های کامپیوتری":        ("تخصصی",  ["سخت‌افزار و سیستم"]),
@@ -56,7 +53,7 @@ COURSE_TOPIC_MAP = {
     "پایگاه داده‌ها":                 ("تخصصی",  ["پایگاه‌داده و داده‌کاوی"]),
     "برنامه‌سازی پیشرفته":            ("پایه",    ["نرم‌افزار و معماری"]),
     "کامپایلر":                       ("تخصصی",  ["نرم‌افزار و معماری", "سخت‌افزار و سیستم"]),
-    "گرافیک کامپیوتری":               ("اختیاری", ["گرافیک کامپیوتری"]),  # طبق چارت واقعا در شیت «دروس اختیاری» است، نه تخصصی اجباری
+    "گرافیک کامپیوتری":               ("اختیاری", ["گرافیک کامپیوتری"]),  # according to the chart it really is in the "elective courses" sheet, not a mandatory specialised course
     "ریاضی 1":                        ("پایه",    ["ریاضیات و علوم پایه"]),
     "ریاضی 2":                        ("پایه",    ["ریاضیات و علوم پایه"]),
     "معادلات دیفرانسیل":              ("پایه",    ["ریاضیات و علوم پایه"]),
@@ -66,24 +63,24 @@ COURSE_TOPIC_MAP = {
     "زبان‌های برنامه‌سازی":            ("اختیاری", ["نرم‌افزار و معماری"]),
     "فیزیک 1":                        ("پایه",    ["ریاضیات و علوم پایه"]),
 
-    # --- درس‌های «انتخابی واقعی» که تازه اضافه شدند (توضیح بالای فایل) ---
-    # گروه انتخابی ۴تایی دروس پایه (باید ۱ تا بگیری):
+    # --- "real elective" courses that were just added (explained at the top of the file) ---
+    # elective group of 4 base courses (you must take 1):
     "فیزیک عمومی (۲)":                ("پایه",    ["ریاضیات و علوم پایه"]),
     "اصول مدیریت":                    ("پایه",    []),
     "اصول حسابداری و هزینه‌یابی":      ("پایه",    []),
     "مبانی اقتصاد":                   ("پایه",    []),
-    # گروه انتخابی ۷تایی دروس تخصصی (باید حداقل ۲ تا بگیری):
+    # elective group of 7 specialised courses (you must take at least 2):
     "آنالیز عددی":                    ("تخصصی",  ["ریاضیات و علوم پایه"]),
     "نظریه گراف و کاربردها":          ("تخصصی",  ["ریاضیات و علوم پایه", "نرم‌افزار و معماری"]),
     "بهینه‌سازی غیرخطی":              ("تخصصی",  ["ریاضیات و علوم پایه"]),
-    # شیت «دروس اختیاری» (کاملا آزاد):
+    # sheet "elective courses" (completely free):
     "منطق":                           ("اختیاری", ["ریاضیات و علوم پایه"]),
     "مبانی کارآفرینی":                ("اختیاری", []),
     "مبانی بیوانفورماتیک":            ("اختیاری", ["پایگاه‌داده و داده‌کاوی"]),
     "کارآموزی ۱":                    ("اختیاری", []),
     "کارآموزی ۲":                    ("اختیاری", []),
-    # سؤال فرم این دو را یکی می‌پرسد (پایین، در CHOICE_COURSES)؛ خود دو درس
-    # بالا برای پوشش کامل چارت نگه داشته شدند.
+    # the form asks these two as one question (below, in CHOICE_COURSES); the two courses
+    # above were kept to cover the chart completely.
     "کارآموزی ۱ و ۲":                 ("اختیاری", []),
     "مباحثی در الگوریتم‌ها":          ("اختیاری", ["نرم‌افزار و معماری"]),
     "نظریه کدگذاری":                 ("اختیاری", ["شبکه", "ریاضیات و علوم پایه"]),
@@ -100,20 +97,19 @@ COURSE_TOPIC_MAP = {
 
 assert len(COURSE_TOPIC_MAP) == 55, f"انتظار ۵۵ درس بود، {len(COURSE_TOPIC_MAP)} تا پیدا شد"
 
-# درس‌هایی که دانشجو واقعا در گرفتن‌شان آزاد است (توضیح کامل بالای فایل):
-# گروه‌های انتخابی دروس پایه/تخصصی + کل شیت «دروس اختیاری»، به‌جز دو درسی که
-# طبق پانویس چارت عملا اجباری‌اند. فقط سؤال Grid فرم از همین لیست ساخته
-# می‌شود؛ COURSE_TOPIC_MAP کامل، برای مصارف دیگر (مثل course_vector)
-# هر دو دسته را می‌پوشاند.
-# «پروژه» حذف شد (در عمل برای همه اجباری است، رضایت‌سنجی‌اش معنی ندارد)؛
-# «کارآموزی ۱» و «کارآموزی ۲» در یک سؤال واحد («کارآموزی ۱ و ۲») ادغام شدند.
+# Courses the student is really free to take (full explanation at the top of the file):
+# elective groups of base/specialised courses + the whole sheet "elective courses", except two courses that
+# are in practice mandatory according to the chart footnote. Only the form's grid question is built from this list;
+# the full COURSE_TOPIC_MAP, for other uses (such as course_vector), covers both kinds.
+# "Project" was removed (it is in practice mandatory for everyone, so asking satisfaction is meaningless);
+# "Internship 1" and "Internship 2" were merged into one question ("کارآموزی ۱ و ۲").
 CHOICE_COURSES = [
-    # گروه انتخابی دروس پایه
+    # elective group of base courses
     "فیزیک عمومی (۲)", "اصول مدیریت", "اصول حسابداری و هزینه‌یابی", "مبانی اقتصاد",
-    # گروه انتخابی دروس تخصصی
+    # elective group of specialised courses
     "کامپایلر", "پایگاه داده‌ها", "شبکه‌های کامپیوتری", "مباحثی در علوم کامپیوتر",
     "بهینه‌سازی غیرخطی", "نظریه گراف و کاربردها", "آنالیز عددی",
-    # دروس اختیاری کاملا آزاد
+    # completely free elective courses
     "منطق", "مقدمه‌ای بر داده‌کاوی", "مبانی کارآفرینی", "مبانی بیوانفورماتیک",
     "کارآموزی ۱ و ۲", "مباحثی در الگوریتم‌ها", "نظریه کدگذاری",
     "طراحی هندسی کامپیوتری", "کاربرد کامپیوتر در سیستم‌های تجاری",
@@ -126,7 +122,7 @@ assert all(c in COURSE_TOPIC_MAP for c in CHOICE_COURSES), "یک درس انتخ
 
 
 def course_vector(course_name):
-    """بردار یک‌داغ (one-hot) چندمقداری روی ۱۰ حوزه، برای محاسبه‌ی شباهت کسینوسی."""
+    """Multi-valued one-hot vector over the 10 topics, for computing cosine similarity."""
     _, topics = COURSE_TOPIC_MAP.get(course_name, ("نامشخص", []))
     return [1 if t in topics else 0 for t in TOPICS]
 
@@ -143,7 +139,7 @@ def student_profile_vector(interest_topics, rated_courses_with_satisfaction, wei
             vec[TOPICS.index(t)] += weight_stated
     for course, score in rated_courses_with_satisfaction.items():
         cv = course_vector(course)
-        centered = score - 3  # ۳ از ۵ خنثی در نظر گرفته می‌شود
+        centered = score - 3  # 3 out of 5 is treated as neutral
         for i, v in enumerate(cv):
             vec[i] += v * centered
     return vec
@@ -156,15 +152,15 @@ if __name__ == "__main__":
         na, nb = math.sqrt(sum(x*x for x in a)), math.sqrt(sum(x*x for x in b))
         return dot / (na*nb) if na and nb else 0.0
 
-    print(f"تعداد درس‌های برچسب‌خورده: {len(COURSE_TOPIC_MAP)}")
-    print(f"تعداد حوزه‌ها: {len(TOPICS)} -> {TOPICS}\n")
+    print(f"Number of labelled courses: {len(COURSE_TOPIC_MAP)}")
+    print(f"Number of topics: {len(TOPICS)} -> {TOPICS}\n")
 
     profile = student_profile_vector(
         interest_topics=["هوش مصنوعی"],
         rated_courses_with_satisfaction={"مبانی احتمال": 5, "شبکه‌های کامپیوتری": 2, "کارگاه": 4},
     )
-    print("بردار پروفایل دانشجوی نمونه:", dict(zip(TOPICS, profile)))
+    print("Profile vector of the sample student:", dict(zip(TOPICS, profile)))
     print()
     for course in ["هوش مصنوعی", "پایگاه داده‌ها", "شبکه‌های کامپیوتری", "فیزیک 1", "کارگاه"]:
         sim = cosine(profile, course_vector(course))
-        print(f"شباهت با «{course}»: {sim:.2f}")
+        print(f"Similarity with \"{course}\": {sim:.2f}")

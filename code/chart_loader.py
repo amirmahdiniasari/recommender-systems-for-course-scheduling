@@ -6,7 +6,7 @@ Loads the digitized curriculum chart (chart_computer_science.xlsx) into a
 single, clean, machine-readable table of courses + prerequisites, plus the
 two "offered this term" sheets.
 
-This is the data layer for the constraint-filter engine (قدم ۴ از برنامه).
+This is the data layer for the constraint-filter engine (step 4 of the plan).
 """
 import re
 import openpyxl
@@ -118,7 +118,7 @@ def _sheet_to_records(ws, category):
         status = row[status_col] if status_col is not None and status_col < len(row) else ""
 
         records.append({
-            "نام درس": re.sub(r"\s+", " ", str(title).replace("،", " ")).strip(),  # ویرگول داخل نام درس («تاریخ، فرهنگ و تمدن…») حذف می‌شود
+            "نام درس": re.sub(r"\s+", " ", str(title).replace("،", " ")).strip(),  # commas inside a course name ("تاریخ، فرهنگ و تمدن...") are removed
             "واحد": units,
             "پیش‌نیاز": prereqs,
             "دسته": category,
@@ -154,9 +154,9 @@ def load_chart(xlsx_path):
     # unit count, so dropping rows with no units removes these notes
     # without touching any actual course.
     df = df[df["واحد"].notna()].reset_index(drop=True)
-    # «زبان انگلیسی عمومی» (۳ واحدی، چارت قدیمی) از انتخاب‌ها حذف شد: برای همه‌ی ورودی‌ها
-    # الگوی درست همان زنجیره‌ی پیش‌دانشگاهی ترکیبی (۲) ← ترکیبی ۱ ← ۲ ← ۳ (هرکدام ۱ واحد، جمعا ۵ واحد،
-    # در ترم‌های جدا به شرط پاس‌شدن پیش‌نیاز) است.
+    # "General English" (3 units, old chart) was removed from the choices: for all entry years the correct
+    # pattern is the blended pre-university chain (2) -> blended 1 -> 2 -> 3 (1 unit each, 5 units in total,
+    # in separate terms provided the prerequisite is passed).
     df = df[df["نام درس"].map(normalize_name) != normalize_name("زبان انگلیسی عمومی")].reset_index(drop=True)
     # de-duplicate: a course may appear in more than one sub-table
     # (e.g. once as a named row, once inside an elective group) — keep the
@@ -173,7 +173,7 @@ def load_chart(xlsx_path):
 
 
 def _load_chart_terms(wb):
-    """ترم پیشنهادی هر درس طبق شیت «چارت پیشنهادی» (کلید: normalize_name). اگر شیت نبود، {}."""
+    """Suggested term of every course according to the sheet \"چارت پیشنهادی\" (key: normalize_name). {} if the sheet is missing."""
     import re as _re
     terms = {}
     try:
@@ -206,7 +206,7 @@ _OFFERED_RENAMES = {
     normalize_name("شبیه سازی کامپیوتر"): "شبیه‌سازی کامپیوتری",
     normalize_name("کارگاه کامپیوتر 1"): "کارگاه کامپیوتر",
     normalize_name("کارآموزی طرح پویش (1) کاردانی و کارشناسی"): "کارآموزی ۱",
-    # در آموزشیار نام این درس بلندتر است و با نام چارت فرق دارد؛ بدون این تطبیق هیچ بخشی برایش ساخته نمی‌شد.
+    # In the registration system this course has a longer name that differs from the chart name; without this mapping no section would be built for it.
     normalize_name("اندیشه های امامین انقلاب اسلامی و وصایای حضرت امام خمینی(ره)"): "اندیشه‌ها و وصایای امام خمینی",
 }
 
@@ -220,8 +220,8 @@ def load_offered(xlsx_path, summer=False):
     suffix = " تابستان" if summer else " این ترم"
     for sheet in ["دروس ارائه‌شده" + suffix, "دروس عمومی ارائه‌شده" + suffix]:
         try:
-            # کدها باید «متن» خوانده شوند: pandas رشته‌ی عددی را عدد می‌کند و صفرهای اول کد ارائه
-            # (مثل 0599 برای تربیت‌بدنی) از دست می‌رود.
+            # Codes must be read as text: pandas turns a numeric string into a number and the leading zeros of the section code
+            # (e.g. 0599 for physical education) are lost.
             t = pd.read_excel(xlsx_path, sheet_name=sheet, header=3,
                               dtype={"کد درس": str, "کد ارائه کلاس": str, "شماره کلاس": str})
         except Exception:
@@ -236,28 +236,28 @@ def load_offered(xlsx_path, summer=False):
         return pd.DataFrame()
     df = pd.concat(frames, ignore_index=True)
     df = df[df["نام درس"].notna()]
-    # «علوم و معارف دفاع مقدس و مقاومت» درس جداگانه‌ای در چارت نیست و جز «آشنایی با دفاع مقدس» حساب نمی‌شود؛ از فهرست ارائه‌ها حذف می‌شود
+    # "Sacred Defense and Resistance Studies" is not a separate course in the chart (it counts as part of "Introduction to the Sacred Defense"); it is removed from the offered list
     df = df[~df["نام درس"].map(lambda n: normalize_name(n).startswith("علوم و معارف دفاع مقدس"))].reset_index(drop=True)
-    # همه‌ی دروس برگه‌ی «دروس ارائه‌شده این ترم» (تخصصی/پایه/اختیاری رشته) در دانشکده‌ی فنی برگزار می‌شوند؛
-    # در ۱۳۱ بخشی که مکانشان ثبت شده، هر ۱۳۱ تا «فنی» است. پس مکان خالی این برگه «فنی» حساب می‌شود.
-    # (دروس عمومی/معارف/زبان در برگه‌ی دیگر جدا مدیریت می‌شوند و مکان خالی‌شان «نامشخص» می‌ماند.)
+    # All courses of the "courses offered this term" sheet (major specialised/base/elective) are held in the engineering building;
+    # of the 131 sections whose location is recorded, all 131 are "فنی" (engineering). So an empty location in this sheet is treated as "فنی".
+    # (General/Islamic-studies/language courses are handled in the other sheet and their empty location stays "نامشخص" (unknown).)
     if "ساختمان" not in df.columns:
         df["ساختمان"] = None
     df.loc[(df["_src"] == "specialized") & df["ساختمان"].isna(), "ساختمان"] = "فنی"
-    # همه‌ی کلاس‌های زبان (انگلیسی/خارجی/فارسی) مجازی‌اند، نه حضوری در یک ساختمان.
+    # All language classes (English/foreign/Persian) are virtual, not in-person in a building.
     _lang = df["نام درس"].map(lambda n: normalize_name(n).startswith(("زبان انگلیسی", "زبان خارجی", "زبان فارسی")))
     df.loc[_lang, "ساختمان"] = "مجازی"
-    # تربیت‌بدنی و ورزش: مکان در HTML نیامده؛ پیش‌فرض دانشکده‌ی پیامبر.
+    # Physical education and sports: the location is not in the HTML; default is the Payambar (Prophet) faculty.
     _pe = df["نام درس"].map(lambda n: normalize_name(n).startswith(("تربیت بدنی", "ورزش")) and "ویژه" not in n) & df["ساختمان"].isna()
     df.loc[_pe, "ساختمان"] = "پیامبر"
     df = df.drop(columns=["_src"])
-    # نام زنجیره‌ی زبان انگلیسی در سامانه ("زبان انگلیسی عمومی-ترکیبی(1)" و ...) با نام چارت
-    # ("زبان انگلیسی ترکیبی ۱" و ...) فرق دارد و تطبیق پیشوندی آن را اشتباه به درس ۳واحدی
-    # «زبان انگلیسی عمومی» وصل می‌کرد. اینجا نام‌ها به نام چارت یکسان می‌شوند.
+    # The names of the English chain in the system ("زبان انگلیسی عمومی-ترکیبی(1)" etc.) differ from the chart names
+    # ("زبان انگلیسی ترکیبی ۱" etc.), and prefix matching wrongly attached them to the 3-unit course
+    # "General English". Here the names are unified to the chart names.
     df["نام درس"] = df["نام درس"].map(lambda n: _OFFERED_RENAMES.get(normalize_name(n), n))
-    # نام درس در آموزشیار گاهی فقط در فاصله/نیم‌فاصله با چارت فرق دارد («ساختمان داده هاوالگوریتمها»
-    # در برابر «ساختمان داده‌ها و الگوریتم‌ها»)؛ چنین نام‌هایی به نام چارت یکسان می‌شوند تا
-    # در همه‌ی ماژول‌ها (اعتبارسنجی دستی، بهینه‌ساز، دستیار) درس در چارت پیدا شود.
+    # A course name in the registration system sometimes differs from the chart only in spaces/half-spaces ("ساختمان داده هاوالگوریتمها"
+    # versus "ساختمان داده‌ها و الگوریتم‌ها"); such names are unified to the chart name so that
+    # in all modules (manual validation, optimizer, assistant) the course is found in the chart.
     try:
         chart_names = load_chart(xlsx_path)["نام درس"].tolist()
         by_loose = {loose_key(n): n for n in chart_names}
@@ -271,8 +271,8 @@ if __name__ == "__main__":
     path = "/mnt/user-data/outputs/chart_computer_science.xlsx"
     chart = load_chart(path)
     offered = load_offered(path)
-    print(f"چارت: {len(chart)} درس منحصربه‌فرد بارگذاری شد.")
+    print(f"Chart: {len(chart)} unique courses loaded.")
     print(chart.head(10).to_string())
     print()
-    print(f"دروس ارائه‌شده‌ی این ترم: {len(offered)} بخش/کلاس.")
+    print(f"Courses offered this term: {len(offered)} sections/classes.")
     print(offered[["نام درس", "استاد"]].head(5).to_string())

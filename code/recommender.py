@@ -2,15 +2,15 @@
 """
 recommender.py
 --------------
-سه رویکرد پیشنهاد درس روی جدول رضایت پرسش‌نامه (دانشجو × درس، ۱ تا ۵ یا NaN):
+Three course-recommendation approaches on the survey satisfaction table (student x course, 1-5 or NaN):
 
-  ۱. مبتنی بر محتوا (CB): شباهت کسینوسی بین «پروفایل موضوعی دانشجو» (course_topics.student_profile_vector:
-     علاقه‌ی اعلام‌شده + رضایت از درس‌های گذرانده) و بردار موضوعی هر درس.
-  ۲. مبتنی بر همکاری (CF): همسایگی دانشجو–دانشجو؛ شباهت = کسینوس روی رتبه‌های میانگین‌صفرشده‌ی درس‌های
-     مشترک، پیش‌بینی = میانگین دانشجو + میانگین وزنی انحراف رتبه‌ی همسایه‌ها.
-  ۳. ترکیبی: alpha * CB + (1 - alpha) * CF، پس از نرمال‌سازی min-max هر کدام روی فهرست کاندیدها.
-به‌علاوه‌ی یک پایه‌ی مقایسه (Popularity: میانگین رضایت همه‌ی دانشجوها از آن درس).
-کاندیدهای هر دانشجو: درس‌هایی که برایشان رتبه‌ای نداده («نگذراندم»).
+  1. Content-based (CB): cosine similarity between the student's topic profile
+     (course_topics.student_profile_vector: declared interests + satisfaction with taken courses) and each course's topic vector.
+  2. Collaborative (CF): student-student neighbourhood; similarity = cosine over the mean-centred ratings of the common courses,
+     prediction = student mean + weighted mean of the neighbours' rating deviations.
+  3. Hybrid: alpha * CB + (1 - alpha) * CF, after min-max normalisation of each over the candidate list.
+Plus a comparison baseline (Popularity: mean satisfaction of all students with that course).
+Candidates of a student: the courses the student has not rated ("did not take").
 """
 import math
 import numpy as np
@@ -18,7 +18,7 @@ import pandas as pd
 
 from course_topics import TOPICS, course_vector, student_profile_vector
 
-MIN_COMMON = 2   # حداقل درس مشترک برای محاسبه‌ی شباهت دو دانشجو
+MIN_COMMON = 2   # minimum number of common courses to compute the similarity of two students
 K_NEIGHBORS = 5
 
 
@@ -29,14 +29,14 @@ def _cos(a, b):
 
 
 def cb_scores(ratings_row, interests, candidates):
-    """ratings_row: Series درس->رضایت (NaN = نگذرانده)."""
+    """ratings_row: Series course -> satisfaction (NaN = not taken)."""
     rated = {c: int(v) for c, v in ratings_row.items() if not pd.isna(v)}
     prof = student_profile_vector(sorted(interests or []), rated)
     return {c: _cos(prof, course_vector(c)) for c in candidates}
 
 
 def cf_scores(R, u, candidates, k=K_NEIGHBORS):
-    """R: DataFrame دانشجو×درس؛ u: اندیس سطر دانشجوی هدف."""
+    """R: student x course DataFrame; u: row index of the target student."""
     means = R.mean(axis=1)
     mu = means[u]
     if pd.isna(mu): mu = float(np.nanmean(R.values))
@@ -59,7 +59,7 @@ def cf_scores(R, u, candidates, k=K_NEIGHBORS):
         if den > 0: out[c] = mu + num / den
         else:
             col = R[c].dropna()
-            out[c] = float(col.mean()) if len(col) else mu   # بدون همسایه: میانگین درس
+            out[c] = float(col.mean()) if len(col) else mu   # no neighbours: course mean
     return out
 
 
@@ -77,11 +77,11 @@ def hybrid_scores(cb, cf, alpha):
     return {c: alpha * a[c] + (1 - alpha) * b[c] for c in cb}
 
 
-# ── تعریف «علاقه» دو مرحله‌ای (گذراندن + رضایت) ───────────────────────────────────────────────
-# مرحله‌ی ۱: خودِ گذراندن یک درس نشانه‌ی علاقه است (+PREF_TAKEN_BASE) و نگذراندنش جریمه‌ی نرم دارد (PREF_NOT_TAKEN).
-# مرحله‌ی ۲: رضایتی که دانشجو از درس گذرانده‌شده داده این علاقه را کم یا زیاد می‌کند: رضایت پایین (۱–۲) جریمه‌ی سخت،
-#            رضایت بالا (۴–۵) پاداش سنگین (PREF_SAT_ADJ). (پرسش‌نامه «نمره» ندارد؛ همین رضایت ۱ تا ۵ نقش نمره را دارد.)
-# همه‌ی ضریب‌ها همین‌جا و در یک جا هستند؛ تغییرشان همه‌ی اجزا (CB، CF، محبوبیت، ارزیابی) را هم‌زمان عوض می‌کند.
+# -- two-stage "preference" definition (taking + satisfaction) ---------------------------------------
+# Stage 1: taking a course is itself a sign of interest (+PREF_TAKEN_BASE) and not taking it carries a soft penalty (PREF_NOT_TAKEN).
+# Stage 2: the satisfaction given to a taken course raises or lowers this: low satisfaction (1-2) is a hard penalty,
+#          high satisfaction (4-5) a heavy reward (PREF_SAT_ADJ). (The survey has no grades; the 1-5 satisfaction plays the role of the grade.)
+# All coefficients are in one place; changing them changes every component (CB, CF, popularity, evaluation) at once.
 PREF_NOT_TAKEN = -0.25
 PREF_TAKEN_BASE = 1.0
 PREF_SAT_ADJ = {1: -3.0, 2: -1.5, 3: 0.0, 4: 1.5, 5: 3.0}
@@ -89,19 +89,19 @@ PREF_MAX = PREF_TAKEN_BASE + max(PREF_SAT_ADJ.values())
 
 
 def preference(rating):
-    """علاقه‌ی یک درس: NaN (نگذرانده) → جریمه‌ی نرم؛ وگرنه پایه‌ی گذراندن + اثر رضایت."""
+    """Preference for one course: NaN (not taken) -> soft penalty; otherwise taking-base + satisfaction effect."""
     if rating is None or pd.isna(rating):
         return PREF_NOT_TAKEN
     return PREF_TAKEN_BASE + PREF_SAT_ADJ[int(min(5, max(1, round(float(rating)))))]
 
 
 def preference_matrix(R):
-    """ماتریس دانشجو×درس رضایت (NaN = نگذرانده) → ماتریس «علاقه» (بدون NaN)."""
+    """Student x course satisfaction matrix (NaN = not taken) -> preference matrix (no NaN)."""
     return R.apply(lambda col: col.map(preference))
 
 
 def cb_scores_graded(ratings_row, interests, candidates, weight_stated=2.0):
-    """مثل cb_scores ولی پروفایل از «علاقه»ی همه‌ی درس‌ها ساخته می‌شود (نگذرانده‌ها هم با جریمه‌ی نرم)."""
+    """Like cb_scores, but the profile is built from the preference of all courses (untaken ones with the soft penalty)."""
     vec = np.zeros(len(TOPICS))
     for t in (interests or []):
         if t in TOPICS:
@@ -112,24 +112,24 @@ def cb_scores_graded(ratings_row, interests, candidates, weight_stated=2.0):
 
 
 def cf_scores_graded(R, u, candidates, k=K_NEIGHBORS):
-    """CF روی ماتریس «علاقه»؛ چون ماتریس پر است، الگوی «چه چیزی را گذرانده‌اند» هم در شباهت دانشجوها اثر دارد."""
+    """CF on the preference matrix; because the matrix is full, the pattern of what students have taken also affects student similarity."""
     return cf_scores(preference_matrix(R), u, candidates, k)
 
 
 def popularity_graded(R, candidates):
-    """محبوبیت بر اساس میانگین «علاقه» (گذراندن + رضایت) میان همه‌ی دانشجوها."""
+    """Popularity based on the mean preference (taking + satisfaction) across all students."""
     P = preference_matrix(R)
     return {c: float(P[c].mean()) for c in candidates}
 
 
 def rank(scores, seed_order):
-    """رتبه‌بندی نزولی؛ برای امتیاز مساوی ترتیب ثابت (seed_order) تا نتیجه قطعی باشد."""
+    """Descending ranking; ties are broken by a fixed order (seed_order) so the result is deterministic."""
     return sorted(scores, key=lambda c: (-scores[c], seed_order.index(c)))
 
 
-# ── پیش‌فرض چارت پیشنهادی ────────────────────────────────────────────────────
-# ترم پیشنهادی هر درس طبق «چارت پیشنهادی» (فقط درس‌هایی که در پرسش‌نامه‌اند و در چارت ترم دارند)؛
-# درس‌های اختیاری بدون ترم در چارت، پیش‌فرض خنثی می‌گیرند.
+# -- suggested-chart prior ------------------------------------------------------------------------
+# Suggested term of each course according to the "suggested chart" (only courses that are in the survey and have a chart term);
+# electives with no term in the chart get a neutral prior.
 CHART_TERM = {
     "فیزیک عمومی (۲)": 4, "احتمال ۱": 5, "کامپایلر": 6,
     "شبکه‌های کامپیوتری": 7, "گرافیک کامپیوتری": 7, "زبان‌های برنامه‌سازی": 7,
@@ -141,33 +141,33 @@ NEUTRAL_PRIOR = 0.5
 
 
 def chart_prior(course, term):
-    """۱ برای درسی که چارت دقیقا برای این ترم گذاشته؛ با هر ترم فاصله ۱/۳ کمتر (حداقل ۰)؛ بدون ترم در چارت: خنثی."""
+    """1 for a course the chart places exactly in this term; 1/3 less for every term of distance (minimum 0); no term in the chart: neutral."""
     t = CHART_TERM.get(course)
     if t is None: return NEUTRAL_PRIOR
     return max(0.0, 1 - abs(t - term) / 3)
 
 
 def chart_weight(beta0, term):
-    """وزن چارت در ترم‌های اول زیاد و در ترم‌های آخر کم: beta0 * (1 - (term-1)/(MAX_TERM))."""
+    """Chart weight is large in the first terms and small in the last terms: beta0 * (1 - (term-1)/(MAX_TERM))."""
     return beta0 * max(0.0, 1 - (min(term, MAX_TERM) - 1) / MAX_TERM)
 
 
 def chart_hybrid_scores(hybrid, term, beta0, eligible=None):
-    """امتیاز نهایی = ترکیب CB/CF (min-max‌شده) + وزن_چارت(ترم) * پیش‌فرض_چارت.
-    eligible (اختیاری): مجموعه‌ی درس‌هایی که دانشجو پیش‌نیازشان را دارد. اثر چارت فقط روی همین‌ها می‌افتد؛
-    بقیه پیش‌فرض خنثی می‌گیرند (نه پاداش، نه جریمه‌ی چارت). None = رفتار قبلی (گزارش)."""
+    """Final score = CB/CF combination (min-max normalised) + chart_weight(term) * chart_prior.
+    eligible (optional): set of courses whose prerequisites the student has. The chart effect applies only to these;
+    the others get a neutral prior (neither reward nor penalty). None = previous behaviour (the report)."""
     w = chart_weight(beta0, term)
     return {c: s + w * (chart_prior(c, term) if (eligible is None or c in eligible) else NEUTRAL_PRIOR)
             for c, s in hybrid.items()}
 
 
-# ── فیلتر پیش‌نیاز (کاندیدهایی که دانشجو پیش‌نیازشان را ندارد حذف می‌شوند) ───────────────────
+# -- prerequisite filter (candidates whose prerequisites the student lacks are removed) -----------------
 import os, re as _re
 
 
 def load_chart_info(path=None):
-    """از چارت: پیش‌نیاز هر درس (load_chart) و ترم چارتی هر درس (شیت «چارت پیشنهادی»).
-    کلیدها با normalize_name یکدست می‌شوند."""
+    """From the chart: prerequisites of every course (load_chart) and the chart term of every course (sheet "چارت پیشنهادی").
+    Keys are unified with normalize_name."""
     import openpyxl
     from chart_loader import load_chart, normalize_name as nn
     path = path or os.path.join(os.path.dirname(os.path.abspath(__file__)), "chart_computer_science.xlsx")
@@ -185,9 +185,9 @@ def load_chart_info(path=None):
 
 
 def prereq_ok(course, passed, term, prereqs, terms):
-    """پیش‌نیازهای «درس» ارضا شده‌اند؟
-    passed: مجموعه‌ی نام‌های (normalize‌شده) درس‌های پرسش‌نامه‌ای که دانشجو گذرانده؛
-    پیش‌نیاز خارج از پرسش‌نامه گذرانده فرض می‌شود اگر ترم چارتی‌اش قبل از «term» باشد (یا ترم چارتی نداشته باشد)."""
+    """Are the prerequisites of `course` satisfied?
+    passed: set of (normalised) names of the survey courses the student has passed;
+    a prerequisite outside the survey is assumed passed if its chart term is before `term` (or it has no chart term)."""
     from chart_loader import normalize_name as nn
     from course_topics import CHOICE_COURSES
     survey = {nn(c) for c in CHOICE_COURSES}
@@ -198,9 +198,9 @@ def prereq_ok(course, passed, term, prereqs, terms):
     return True
 
 
-# ── هموارسازی میانگین درس با میانگین گروه موضوعی (برای درس‌های کم‌امتیاز) ─────────────────
+# -- smoothing a course mean towards the mean of its topic group (for courses with few ratings) -----------
 def popularity_smoothed(R, candidates, m=3.0):
-    """میانگین درس با shrinkage به‌سمت میانگین همان گروه موضوعی: (n*mean + m*groupmean)/(n+m)."""
+    """Course mean with shrinkage towards the mean of its topic group: (n*mean + m*groupmean)/(n+m)."""
     from course_topics import COURSE_TOPIC_MAP
     glob = float(np.nanmean(R.values))
     def grp(c):

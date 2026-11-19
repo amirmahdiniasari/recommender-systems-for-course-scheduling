@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
 """
-evaluate_given_n.py — ارزیابی «Given-n» روی ۱۰ درس انتخابی واقعاً ارائه‌شده (OFFERED_ELECTIVES)
------------------------------------------------------------------------------------------
-چرا؟ با فقط ۱۰ درس، دانشجو بیشترشان را رتبه داده و در طرح «یک درس کنارگذاشته + درس‌های نارتبه‌داده‌شده کاندید»
-(evaluate_rq1.py) تقریباً کاندیدی نمی‌ماند (با حداقل ۶ کاندید: صفر آزمون).
-طرح Given-n: برای هر دانشجوی هدف u (LOSO: u در آموزش نیست):
-  ۱) n درس از درس‌های رتبه‌داده‌شده‌ی u را تصادفی «داده‌شده» می‌گیریم؛ بقیه‌ی رتبه‌های u پنهان می‌شوند.
-  ۲) کاندیدها = همه‌ی درس‌های غیرِ داده‌شده (با فیلتر پیش‌نیاز بر پایه‌ی سوابق واقعی دانشجو).
-  ۳) درس‌های مرتبط = پنهان‌هایی که رضایتشان ۴ یا ۵ بوده (ممکن است چند تا باشند).
-  ۴) هر روش کاندیدها را رتبه می‌دهد؛ Recall@3 = مرتبط‌های سه پیشنهاد برتر ÷ min(3، تعداد مرتبط‌ها)، NDCG@5، MRR.
-  برای پایداری، هر دانشجو DRAWS بار با انتخاب‌های تصادفی مختلف سنجیده می‌شود و میانگین می‌گیریم؛ آماره‌ها روی دانشجوها.
-اجرا:  python evaluate_given_n.py form_responses_23.csv --n 3 --draws 50 --out given_out
+evaluate_given_n.py - "Given-n" evaluation on the 10 elective courses actually offered (OFFERED_ELECTIVES)
+
+Why? With only 10 courses a student has rated most of them, so in the "one held-out course + unrated courses as
+candidates" design (evaluate_rq1.py) almost no candidates are left (with at least 6 candidates: zero tests).
+Given-n design: for every target student u (LOSO: u is not in the training set):
+  1) n of u's rated courses are randomly "given"; the rest of u's ratings are hidden.
+  2) Candidates = all non-given courses (prerequisite filter based on the student's real history).
+  3) Relevant courses = hidden ones the student rated 4 or 5 (there may be several).
+  4) Each method ranks the candidates; Recall@3 = relevant in the top 3 / min(3, number of relevant), NDCG@5, MRR.
+  For stability every student is measured DRAWS times with different random choices and averaged; statistics are over students.
+Run:  python evaluate_given_n.py form_responses_23.csv --n 3 --draws 50 --out given_out
 """
 import argparse, json, math, os, itertools
 import numpy as np, pandas as pd
@@ -21,7 +21,7 @@ from recommender import rank, prereq_ok
 
 METHODS = ["Random", "GlobalMean", "Popularity", "PopSmooth", "CB", "CF", "Hybrid", "Count"]
 
-# Count = تعداد گذرانندگان درس در دانشجوهای آموزش (خط پایه‌ی «محبوبیت بر پایه‌ی گذراندن»، بدون استفاده از رضایت)
+# Count = number of training students who passed the course (baseline 'popularity by taking', ignoring satisfaction)
 _orig_score_all = e.score_all
 def _score_all_with_count(t, train, interests, courses):
     s = _orig_score_all(t, train, interests, courses)
@@ -51,7 +51,7 @@ def random_expected(nrel, ncand, rng, sims=300):
 
 
 def build_cases(R, years, courses, n_given, draws, seed, min_cands, passed_true, targets=None):
-    targets = targets or courses     # درس‌هایی که کاندید و هدف ارزیابی‌اند؛ بقیه‌ی courses فقط «زمینه»اند (امتیازشان معلوم می‌ماند)
+    targets = targets or courses     # courses that are candidates and evaluation targets; the rest of `courses` are only 'context' (their ratings stay known)
     rng = np.random.default_rng(seed)
     cases = []
     for u in R.index:
@@ -124,14 +124,14 @@ def main():
     ap.add_argument("csv"); ap.add_argument("--n", type=int, default=3)
     ap.add_argument("--draws", type=int, default=50); ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--min-candidates", type=int, default=4)
-    ap.add_argument("--context-all", action="store_true", help="امتیاز هر ۲۸ درس به‌عنوان زمینه (آموزش و پروفایل) می‌ماند، ولی کاندید و هدف فقط همان ده درس ارائه‌شده‌اند")
-    ap.add_argument("--without-offered", action="store_true", help="مانند --context-all، ولی هدف و کاندید فقط ۱۸ درس ارائه‌نشده‌اند (بدون آن ده درس)")
+    ap.add_argument("--context-all", action="store_true", help="keep the ratings of all 28 courses as context (training and profile), but candidates and targets are only the ten offered courses")
+    ap.add_argument("--without-offered", action="store_true", help="like --context-all, but targets and candidates are only the 18 NOT offered courses (without the ten)")
     ap.add_argument("--out", default="given_out")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     tidy = sp.load_survey(a.csv)
     all28 = [c for c in sp.SPECIALIZED_COURSES if c in tidy.columns]
-    courses = [c for c in sp.SPECIALIZED_COURSES if c in e.OFFERED_ELECTIVES and c in tidy.columns]   # ترتیب خنثی (ترتیب پرسش‌نامه) تا تساوی‌ها به نفع کسی نشود
+    courses = [c for c in sp.SPECIALIZED_COURSES if c in e.OFFERED_ELECTIVES and c in tidy.columns]   # neutral order (questionnaire order) so ties do not favour any method
     R = tidy[courses].astype(float); interests, years = tidy["علاقه‌مندی‌ها"], tidy["سال_ورود"]
     targets = None
     if a.context_all:
@@ -140,8 +140,8 @@ def main():
         targets = [c for c in all28 if c not in courses]; courses = all28; R = tidy[courses].astype(float)
     cases, per = run(R, interests, years, courses, a.n, a.draws, a.seed, a.min_candidates, targets)
     tested = sorted({t["u"] for t in cases})
-    print(f"Given-{a.n} | دانشجو: {len(R)} | دانشجوی دارای آزمون: {len(tested)} | آزمون (قرعه‌ها): {len(cases)} | "
-          f"میانگین کاندید: {np.mean([len(t['cands']) for t in cases]):.1f} | میانگین مرتبط: {np.mean([len(t['rel']) for t in cases]):.2f}")
+    print(f"Given-{a.n} | students: {len(R)} | students with tests: {len(tested)} | tests (draws): {len(cases)} | "
+          f"mean candidates: {np.mean([len(t['cands']) for t in cases]):.1f} | mean relevant: {np.mean([len(t['rel']) for t in cases]):.2f}")
     tab = summarize(per); print(tab.round(3).to_string())
     per.to_csv(os.path.join(a.out, f"given{a.n}_per_student.csv"), index=False, encoding="utf-8-sig")
     tab.to_csv(os.path.join(a.out, f"given{a.n}_main.csv"), encoding="utf-8-sig")
@@ -151,21 +151,21 @@ def main():
         for met in ("R@3", "NDCG@5"):
             ps[f"{x} vs {y} [{met}]"] = e.paired_p(per, x, y, met)
     h = holm(ps)
-    print("\nآزمون جایگشتی جفت‌شده (برنامه‌ریزی‌شده، ۶ آزمون) p خام / Holm:")
+    print("\nPaired permutation test (pre-planned, 6 tests) raw p / Holm:")
     for k, v in ps.items(): print(f"  {k}: {v} / {h.get(k)}")
     ps2 = {}
     for x, y in [("CF", "Popularity"), ("CB", "Popularity")]:
         for met in ("R@3", "NDCG@5"):
             ps2[f"{x} vs {y} [{met}]"] = e.paired_p(per, x, y, met)
     h2 = holm(ps2)
-    print("\nاکتشافی:")
+    print("\nExploratory:")
     for k, v in ps2.items(): print(f"  {k}: {v} / {h2.get(k)}")
     ps3 = {}
     for x, y in [("Hybrid", "Count"), ("CF", "Count"), ("Count", "Popularity")]:
         for met in ("R@3", "NDCG@5"):
             ps3[f"{x} vs {y} [{met}]"] = e.paired_p(per, x, y, met)
     h3 = holm(ps3)
-    print("\nاکتشافی (خط پایه‌ی تعداد گذرانندگان):")
+    print("\nExploratory (count-of-passers baseline):")
     for k, v in ps3.items(): print(f"  {k}: {v} / {h3.get(k)}")
     ci = {m: {met: boot_ci(per, m, met) for met in ("R@3", "NDCG@5")} for m in METHODS}
     print("\nCI 95%:"); [print(" ", m, {k: [round(x, 2) for x in v] for k, v in d.items()}) for m, d in ci.items()]
