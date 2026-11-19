@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+*_out/
+form_responses*.csv
+!sample_data/*.csv
+professor_scores.csv
